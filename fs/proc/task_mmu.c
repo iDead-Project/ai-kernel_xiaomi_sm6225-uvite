@@ -1908,9 +1908,19 @@ static int reclaim_pte_range(pmd_t *pmd, unsigned long addr,
 		page = vm_normal_page(vma, addr, ptent);
 		if (!page)
 			continue;
-		/*
-		 * XXX: we don't handle compound page at this moment but
-		 * it should revisit for THP page before upstream.
+
+		if (page_mapcount(page) != 1)
+			continue;
+
+		if (isolate_lru_page(compound_head(page)))                                            
+			continue;
+
+		/* MADV_FREE clears pte dirty bit and then marks the page
+		 * lazyfree (clear SwapBacked). Inbetween if this lazyfreed page
+		 * is touched by user then it becomes dirty.  PPR in
+		 * shrink_page_list in try_to_unmap finds the page dirty, marks
+		 * it back as PageSwapBacked and skips reclaim. This can cause
+		 * isolated count mismatch.
 		 */
 		if (PageCompound(page)) {
 			unsigned int order = compound_order(page);
@@ -1957,10 +1967,11 @@ static ssize_t reclaim_write(struct file *file, const char __user *buf,
 	struct vm_area_struct *vma;
 	enum reclaim_type type;
 	char *type_buf;
-	int err;
-
-	if (!capable(CAP_SYS_NICE))
-		return -EPERM;
+	struct mm_walk reclaim_walk = {};
+	unsigned long start = 0;
+	unsigned long end = 0;
+	struct reclaim_param rp;
+	int ret;
 
 	memset(buffer, 0, sizeof(buffer));
 	if (count > sizeof(buffer) - 1)
@@ -1989,7 +2000,31 @@ static ssize_t reclaim_write(struct file *file, const char __user *buf,
 			.pmd_entry = reclaim_pte_range,
 		};
 
-		down_read(&mm->mmap_sem);
+	reclaim_walk.mm = mm;
+	reclaim_walk.pmd_entry = reclaim_pte_range;
+
+	rp.nr_to_reclaim = INT_MAX;
+	rp.nr_reclaimed = 0;
+	reclaim_walk.private = &rp;
+
+	down_read(&mm->mmap_sem);
+	if (type == RECLAIM_RANGE) {
+		vma = find_vma(mm, start);
+		while (vma) {
+			if (vma->vm_start > end)
+				break;
+			if (is_vm_hugetlb_page(vma))
+				continue;
+
+			rp.vma = vma;
+			ret = walk_page_range(max(vma->vm_start, start),
+					min(vma->vm_end, end),
+					&reclaim_walk);
+			if (ret)
+				break;
+			vma = vma->vm_next;
+		}
+	} else {
 		for (vma = mm->mmap; vma; vma = vma->vm_next) {
 			if (is_vm_hugetlb_page(vma))
 				continue;
@@ -2002,21 +2037,11 @@ static ssize_t reclaim_write(struct file *file, const char __user *buf,
 			if (type == RECLAIM_FILE && vma_is_anonymous(vma))
 				continue;
 
-			if (vma_is_anonymous(vma)) {
-				if (get_nr_swap_pages() <= 0 ||
-					get_mm_counter(mm, MM_ANONPAGES) == 0) {
-					if (type == RECLAIM_ALL)
-						continue;
-					else
-						break;
-				}
-				reclaim_walk_ops.pmd_entry = reclaim_pte_range;
-			} else {
-				reclaim_walk_ops.pmd_entry = deactivate_pte_range;
-			}
-
-			walk_page_range(vma->vm_start, vma->vm_end,
-					&reclaim_walk);
+			rp.vma = vma;
+			ret = walk_page_range(vma->vm_start, vma->vm_end,
+				&reclaim_walk);
+			if (ret)
+				break;
 		}
 		flush_tlb_mm(mm);
 		up_read(&mm->mmap_sem);
