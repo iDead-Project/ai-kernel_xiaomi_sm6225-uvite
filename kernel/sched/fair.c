@@ -4348,6 +4348,8 @@ static inline void util_est_enqueue(struct cfs_rq *cfs_rq,
 
 #define UTIL_EST_MARGIN (SCHED_CAPACITY_SCALE / 100)
 
+#define UTIL_EST_MARGIN (SCHED_CAPACITY_SCALE / 100)
+
 /*
  * Check if a (signed) value is within a specified (unsigned) margin,
  * based on the observation that:
