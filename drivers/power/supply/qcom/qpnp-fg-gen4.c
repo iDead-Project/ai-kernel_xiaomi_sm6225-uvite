@@ -4469,10 +4469,68 @@ static int fg_psy_get_property(struct power_supply *psy,
 	struct fg_dev *fg = &chip->fg;
 	int rc = 0, val;
 	int64_t temp;
+#ifdef CONFIG_MACH_XIAOMI_SM8250
+	int vbatt_uv;
+	int shutdown_voltage;
+	int capacity_major, capacity_minor;
+	static bool shutdown_delay_cancel;
+	static bool last_shutdown_delay;
+#endif
+
+#ifdef CONFIG_BATT_VERIFY_BY_DS28E16
+	union power_supply_propval b_val = {0,};
+
+	if (fg->max_verify_psy == NULL) {
+		fg->max_verify_psy = power_supply_get_by_name("batt_verify");
+		if (fg->max_verify_psy == NULL) {
+			pr_debug("max_verify_psy is NULL\n");
+		}
+	}
+#endif
 
 	switch (psp) {
 	case POWER_SUPPLY_PROP_CAPACITY:
-		rc = fg_gen4_get_prop_capacity(fg, &pval->intval);
+		rc = fg_gen4_get_prop_capacity_raw(chip, &pval->intval);
+		capacity_major = pval->intval / 100;
+		capacity_minor = pval->intval % 100;
+		if (capacity_minor >= 50)
+			capacity_major++;
+
+		pval->intval = capacity_major;
+
+		//shutdown delay feature
+		if (chip->dt.shutdown_delay_enable) {
+			if (pval->intval == 0) {
+				if (is_low_temp_flag)
+					shutdown_voltage = SHUTDOWN_DELAY_VOL_lOW_TEMP;
+				else
+					shutdown_voltage = SHUTDOWN_DELAY_VOL;
+				rc = fg_get_battery_voltage(fg, &vbatt_uv);
+				if (vbatt_uv/1000 > shutdown_voltage
+					&& fg->charge_status != POWER_SUPPLY_STATUS_CHARGING) {
+					fg->shutdown_delay = true;
+					pval->intval = 1;
+				} else if (fg->charge_status == POWER_SUPPLY_STATUS_CHARGING
+								&& fg->shutdown_delay) {
+					fg->shutdown_delay = false;
+					shutdown_delay_cancel = true;
+					pval->intval = 1;
+				} else {
+					fg->shutdown_delay = false;
+					if (shutdown_delay_cancel)
+						pval->intval = 1;
+				}
+			} else {
+				fg->shutdown_delay = false;
+				shutdown_delay_cancel = false;
+			}
+
+			if (last_shutdown_delay != fg->shutdown_delay) {
+				last_shutdown_delay = fg->shutdown_delay;
+				if (fg->fg_psy)
+					power_supply_changed(fg->fg_psy);
+			}
+		}
 		break;
 	case POWER_SUPPLY_PROP_REAL_CAPACITY:
 		rc = fg_gen4_get_prop_real_capacity(fg, &pval->intval);
