@@ -386,13 +386,13 @@ struct lru_gen_mm_state {
 	struct list_head *head;
 	/* where the last iteration ends (exclusive) */
 	struct list_head *tail;
-	/* to wait for the last page table walker to finish */
+	/* Unused - keep for ABI compatiiblity */
 	struct wait_queue_head wait;
 	/* Bloom filters flip after each iteration */
 	unsigned long *filters[NR_BLOOM_FILTERS];
 	/* the mm stats for debugging */
 	unsigned long stats[NR_HIST_GENS][NR_MM_STATS];
-	/* the number of concurrent page table walkers */
+	/* Unused - keep for ABI compatiiblity */
 	int nr_walkers;
 };
 
