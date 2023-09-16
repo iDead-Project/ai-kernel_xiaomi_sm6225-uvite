@@ -809,6 +809,10 @@ int f2fs_truncate(struct inode *inode)
 	if (err)
 		return err;
 
+	err = dquot_initialize(inode);
+	if (err)
+		return err;
+
 	/* we should check inline_data size */
 	if (!f2fs_may_inline_data(inode)) {
 		err = f2fs_convert_inline_inode(inode);

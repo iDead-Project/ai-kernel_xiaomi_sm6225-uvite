@@ -888,10 +888,7 @@ static ssize_t simple_attr_write_xsigned(struct file *file, const char __user *b
 		goto out;
 
 	attr->set_buf[size] = '\0';
-	if (is_signed)
-		ret = kstrtoll(attr->set_buf, 0, &val);
-	else
-		ret = kstrtoull(attr->set_buf, 0, &val);
+	ret = kstrtoull(attr->set_buf, 0, &val);
 	if (ret)
 		goto out;
 	ret = attr->set(attr->data, val);
