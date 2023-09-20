@@ -291,7 +291,6 @@ const char *fscrypt_get_symlink(struct inode *inode, const void *caddr,
 				unsigned int max_size,
 				struct delayed_call *done);
 int fscrypt_symlink_getattr(const struct path *path, struct kstat *stat);
-
 #else  /* !CONFIG_FS_ENCRYPTION */
 
 static inline bool fscrypt_has_encryption_key(const struct inode *inode)

@@ -686,8 +686,6 @@ static int __f2fs_setxattr(struct inode *inode, int index,
 			(void *)XATTR_NEXT_ENTRY(last) > last_base_addr) {
 			set_sbi_flag(F2FS_I_SB(inode), SBI_NEED_FSCK);
 			error = -EFSCORRUPTED;
-			f2fs_handle_error(F2FS_I_SB(inode),
-						ERROR_CORRUPTED_XATTR);
 			goto exit;
 		}
 		last = XATTR_NEXT_ENTRY(last);

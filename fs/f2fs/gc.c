@@ -1105,21 +1105,6 @@ static bool is_alive(struct f2fs_sb_info *sbi, struct f2fs_summary *sum,
 		return false;
 	}
 
-	if (IS_INODE(node_page)) {
-		base = offset_in_addr(F2FS_INODE(node_page));
-		max_addrs = DEF_ADDRS_PER_INODE;
-	} else {
-		base = 0;
-		max_addrs = DEF_ADDRS_PER_BLOCK;
-	}
-
-	if (base + ofs_in_node >= max_addrs) {
-		f2fs_err(sbi, "Inconsistent blkaddr offset: base:%u, ofs_in_node:%u, max:%u, ino:%u, nid:%u",
-			base, ofs_in_node, max_addrs, dni->ino, dni->nid);
-		f2fs_put_page(node_page, 1);
-		return false;
-	}
-
 	*nofs = ofs_of_node(node_page);
 	source_blkaddr = data_blkaddr(NULL, node_page, ofs_in_node);
 	f2fs_put_page(node_page, 1);
@@ -1588,11 +1573,11 @@ next_step:
 			int err;
 
 			if (S_ISREG(inode->i_mode)) {
-				if (!f2fs_down_write_trylock(&fi->i_gc_rwsem[READ])) {
+				if (!down_write_trylock(&fi->i_gc_rwsem[READ])) {
 					sbi->skipped_gc_rwsem++;
 					continue;
 				}
-				if (!f2fs_down_write_trylock(
+				if (!down_write_trylock(
 						&fi->i_gc_rwsem[WRITE])) {
 					sbi->skipped_gc_rwsem++;
 					f2fs_up_write(&fi->i_gc_rwsem[READ]);
