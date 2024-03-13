@@ -1524,12 +1524,6 @@ next_step:
 					special_file(inode->i_mode))
 				continue;
 
-			err = f2fs_gc_pinned_control(inode, gc_type, segno);
-			if (err == -EAGAIN) {
-				iput(inode);
-				return submitted;
-			}
-
 			if (!f2fs_down_write_trylock(
 				&F2FS_I(inode)->i_gc_rwsem[WRITE])) {
 				iput(inode);
