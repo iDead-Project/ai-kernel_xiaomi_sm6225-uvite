@@ -1,10 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /* Copyright (c) 2015-2020, The Linux Foundation. All rights reserved.
- *
-*/
-
-/*
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/interrupt.h>
@@ -76,7 +72,9 @@ struct qti_can {
 	int bits_per_word;
 	int reset_delay_msec;
 	int reset;
+#ifndef CONFIG_QTI_CAN_TARGET_2W_V2
 	int tx_gpio;
+#endif
 	bool support_can_fd;
 	bool use_qtimer;
 	bool can_fw_cmd_timeout_req;
@@ -663,11 +661,17 @@ static int qti_can_do_spi_transaction(struct qti_can *priv_data)
 	}
 
 	spi_message_init(msg);
-	if (priv_data->tx_gpio && priv_data->mcu_pwr_state == 1) {
-	      dev_info(&priv_data->spidev->dev, "MCU State %d GPIO Trigger High",priv_data->mcu_pwr_state);
-	      gpio_direction_output(priv_data->tx_gpio, 1);
-	      msleep(priv_data->mcu_suspend_delay);
+#ifndef CONFIG_QTI_CAN_TARGET_2W_V2
+	if (priv_data->tx_gpio) {
+		gpio_direction_output(priv_data->tx_gpio, 1);
+#endif
+		if(priv_data->mcu_pwr_state) {
+			dev_info(&priv_data->spidev->dev, "MCU State %d GPIO Trigger High",priv_data->mcu_pwr_state);
+			msleep(priv_data->mcu_suspend_delay);
+		}
+#ifndef CONFIG_QTI_CAN_TARGET_2W_V2
 	}
+#endif
 	spi_message_add_tail(xfer, msg);
 	xfer->tx_buf = priv_data->tx_buf;
 	xfer->rx_buf = priv_data->rx_buf;
@@ -687,12 +691,17 @@ static int qti_can_do_spi_transaction(struct qti_can *priv_data)
 	} else {
 		checksum_rx_len = (priv_data->rx_buf[1]) + 4;
 	}
-	if (priv_data->tx_gpio && priv_data->mcu_pwr_state == 1) {
-	      dev_info(&priv_data->spidev->dev, "MCU State %d GPIO Trigger Low",priv_data->mcu_pwr_state);
-	      gpio_direction_output(priv_data->tx_gpio, 0);
-	      priv_data->mcu_pwr_state = 0;
+#ifndef CONFIG_QTI_CAN_TARGET_2W_V2
+	if (priv_data->tx_gpio) {
+		gpio_direction_output(priv_data->tx_gpio, 1);
+#endif
+		if (priv_data->mcu_pwr_state == 1) {
+			dev_info(&priv_data->spidev->dev, "MCU State %d GPIO Trigger Low",priv_data->mcu_pwr_state);
+			priv_data->mcu_pwr_state = 0;
+		}
+#ifndef CONFIG_QTI_CAN_TARGET_2W_V2
 	}
-
+#endif
 	if (ret == 0 && checksum_enable) {
 		for (i = 0; i < checksum_rx_len; i++)
 			rx_checksum ^= priv_data->rx_buf[i];
@@ -1656,6 +1665,7 @@ static int qti_can_probe(struct spi_device *spi)
 	}
 
 
+#ifndef CONFIG_QTI_CAN_TARGET_2W_V2
 	priv_data->tx_gpio = of_get_named_gpio(spi->dev.of_node,
 					     "qcom,tx-gpio", 0);
 
@@ -1668,6 +1678,7 @@ static int qti_can_probe(struct spi_device *spi)
 		}
 		gpio_direction_output(priv_data->tx_gpio, 0);
 	}
+#endif
 
 	/* After AP boots, Expect MCU should be suspend */
 	priv_data->mcu_pwr_state = 1;
