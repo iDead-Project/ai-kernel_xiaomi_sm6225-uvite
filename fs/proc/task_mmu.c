@@ -2006,42 +2006,72 @@ static ssize_t reclaim_write(struct file *file, const char __user *buf,
 			.pmd_entry = reclaim_pte_range,
 		};
 
+		reclaim_walk.mm = mm;
+		reclaim_walk.pmd_entry = reclaim_pte_range;
+
+		rp.nr_to_reclaim = INT_MAX;
+		rp.nr_reclaimed = 0;
+		reclaim_walk.private = &rp;
+
 		down_read(&mm->mmap_sem);
-		for (vma = mm->mmap; vma; vma = vma->vm_next) {
-			if (is_vm_hugetlb_page(vma))
-				continue;
-
-			if (vma->vm_flags & VM_LOCKED)
-				continue;
-
-			if (type == RECLAIM_ANON && !vma_is_anonymous(vma))
-				continue;
-			if (type == RECLAIM_FILE && vma_is_anonymous(vma))
-				continue;
-
-			if (vma_is_anonymous(vma)) {
-				if (get_nr_swap_pages() <= 0 ||
-					get_mm_counter(mm, MM_ANONPAGES) == 0) {
-					if (type == RECLAIM_ALL)
-						continue;
-					else
+		if (type == RECLAIM_RANGE) {
+			vma = find_vma(mm, start);
+			while (vma) {
+				/* Moto huangzq2: abort reclaim if app goes to foreground. */
+				if (task->signal->oom_score_adj == 0)
 						break;
-				}
-				reclaim_walk_ops.pmd_entry = reclaim_pte_range;
-			} else {
-				reclaim_walk_ops.pmd_entry = deactivate_pte_range;
+				if (vma->vm_start > end)
+					break;
+				if (is_vm_hugetlb_page(vma))
+					continue;
+
+				rp.vma = vma;
+				walk_page_range(max(vma->vm_start, start),
+						min(vma->vm_end, end),
+						&reclaim_walk);
+				vma = vma->vm_next;
 			}
+		} else {
+			for (vma = mm->mmap; vma; vma = vma->vm_next) {
+				/* Moto huangzq2: abort reclaim if app goes to foreground. */
+				if (task->signal->oom_score_adj == 0)
+					break;
 
-			walk_page_range(vma->vm_start, vma->vm_end,
-					&reclaim_walk);
+				if (is_vm_hugetlb_page(vma))
+					continue;
+
+				if (vma->vm_flags & VM_LOCKED)
+					continue;
+
+				if (type == RECLAIM_ANON && !vma_is_anonymous(vma))
+					continue;
+				if (type == RECLAIM_FILE && vma_is_anonymous(vma))
+					continue;
+
+				if (vma_is_anonymous(vma)) {
+					if (get_nr_swap_pages() <= 0 ||
+						get_mm_counter(mm, MM_ANONPAGES) == 0) {
+						if (type == RECLAIM_ALL)
+							continue;
+						else
+							break;
+					}
+					reclaim_walk_ops.pmd_entry = reclaim_pte_range;
+				} else {
+					reclaim_walk_ops.pmd_entry = deactivate_pte_range;
+				}
+
+				walk_page_range(vma->vm_start, vma->vm_end,
+						&reclaim_walk);
+			}
+			flush_tlb_mm(mm);
+			up_read(&mm->mmap_sem);
+			mmput(mm);
 		}
-		flush_tlb_mm(mm);
-		up_read(&mm->mmap_sem);
-		mmput(mm);
-	}
-	put_task_struct(task);
+		put_task_struct(task);
 
-	return count;
+		return count;
+	}
 }
 
 const struct file_operations proc_reclaim_operations = {
