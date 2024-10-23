@@ -127,6 +127,7 @@ struct spi_miso { /* TLV for MISO line */
 #define CMD_PROPERTY_READ		0x8C
 #define CMD_MCU_POWER_STATE		0x8D
 #define CMD_AP_POWEROFF_EVENT		0x8E
+#define CMD_SEND_HEARTBEAT_EVENT	0x94
 #define CMD_GET_FW_BR_VERSION		0x95
 #define CMD_BEGIN_FIRMWARE_UPGRADE	0x96
 #define CMD_FIRMWARE_UPGRADE_DATA	0x97
@@ -297,6 +298,9 @@ static struct kobject *qti_fw_kobject;
 struct can_fw_resp *g_fw_str = NULL;
 
 static int qti_can_rx_message(struct qti_can *priv_data);
+#ifdef CONFIG_QTI_HEARTBEAT
+int register_heartbeat(struct qti_can *);
+#endif
 
 static irqreturn_t qti_can_irq(int irq, void *priv)
 {
@@ -725,6 +729,40 @@ static int qti_can_do_spi_transaction(struct qti_can *priv_data)
 	devm_kfree(&spi->dev, xfer);
 	return ret;
 }
+
+#ifdef CONFIG_QTI_HEARTBEAT
+int send_heartbeat_event(void *qti_can_priv_data, uint32_t sysstate_val, int len) {
+	struct qti_can *priv_data = NULL;
+	char *tx_buf, *rx_buf;
+	struct spi_mosi *req;
+	int ret;
+
+	priv_data = (struct qti_can *) qti_can_priv_data;
+
+	mutex_lock(&priv_data->spi_lock);
+
+	tx_buf = priv_data->tx_buf;
+	rx_buf = priv_data->rx_buf;
+	memset(tx_buf, 0, XFER_BUFFER_SIZE);
+	memset(rx_buf, 0, XFER_BUFFER_SIZE);
+
+	req = (struct spi_mosi *)tx_buf;
+	req->cmd = CMD_SEND_HEARTBEAT_EVENT;
+	req->len = len;
+	req->seq = atomic_inc_return(&priv_data->msg_seq);
+	req->data[0] = (sysstate_val & 0x000000FF);
+	req->data[1] = (sysstate_val>>8 & 0x000000FF);
+	req->data[2] = (sysstate_val>>16 & 0x000000FF);
+	req->data[3] = (sysstate_val>>24 & 0x000000FF);
+
+	ret = qti_can_do_spi_transaction(priv_data);
+	mutex_unlock(&priv_data->spi_lock);
+
+	return ret;
+
+}
+EXPORT_SYMBOL(send_heartbeat_event);
+#endif
 
 static int qti_can_rx_message(struct qti_can *priv_data)
 {
@@ -1721,6 +1759,13 @@ static int qti_can_probe(struct spi_device *spi)
 			goto unregister_candev;
 		}
 	}
+#ifdef CONFIG_QTI_HEARTBEAT
+	err = register_heartbeat(priv_data);
+	if (err) {
+		LOGDE("Failed to register heartbeat: %d", err);
+		goto unregister_candev;
+	}
+#endif
 
 	err = request_threaded_irq(spi->irq, NULL, qti_can_irq,
 				   IRQF_TRIGGER_FALLING | IRQF_ONESHOT,

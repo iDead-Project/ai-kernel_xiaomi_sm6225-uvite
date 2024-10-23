@@ -79,3 +79,4 @@ obj-$(CONFIG_FPR_FPC)		+= fpr_FingerprintCard/
 obj-y                           += qrc/
 obj-$(CONFIG_KINECTICS_XR_NORDIC) += kxrctrl/
 obj-$(CONFIG_USB7002_HUB)       += usb7002/
+obj-$(CONFIG_QTI_HEARTBEAT)     += heartbeat/
