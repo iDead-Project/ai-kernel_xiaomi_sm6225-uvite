@@ -12,40 +12,43 @@
 #include<linux/workqueue.h>
 #include<linux/mutex.h>
 
-#define QTI_EVENT_TIMEOUT 3
+#define QTI_EVENT_TIMEOUT   3
+#define HB_BUFFER_SIZE      1024
 
 struct kobject *h_kobj;
 uint32_t sysstate_value = 0;
 struct delayed_work hwork;
 struct mutex h_lock;
 void *qti_can_priv_data = NULL;
+char *hb_buf = NULL;
 
 int send_heartbeat_event(void *, uint32_t, int);
 
-
-void send_qti_events(struct work_struct *work) {
-
+void send_qti_events(struct work_struct *work)
+{
 	mutex_lock(&h_lock);
-	send_heartbeat_event(qti_can_priv_data,sysstate_value,4);
+	send_heartbeat_event(qti_can_priv_data, sysstate_value, 4);
 	mutex_unlock(&h_lock);
 	sysstate_value = 0;
 	schedule_delayed_work(&hwork, QTI_EVENT_TIMEOUT*HZ);
-
 }
 
 static ssize_t android_status_show(struct kobject *kobj,
 		struct kobj_attribute *attr, char *buf)
 {
-	return sprintf(buf, "%x", sysstate_value);
+	return snprintf(buf, HB_BUFFER_SIZE, "%s", hb_buf);
 }
 
 static ssize_t android_status_store(struct kobject *kobj,
 		struct kobj_attribute *attr, const char *buf, size_t count)
 {
-
-	sscanf(buf, "%x", &sysstate_value);
+	if (count >= HB_BUFFER_SIZE) {
+		return -EINVAL;
+	}
+	strlcpy(hb_buf, buf, count);
+	sscanf(buf, "%8x", &sysstate_value);
 	mutex_lock(&h_lock);
-	send_heartbeat_event(qti_can_priv_data,sysstate_value,4);
+	send_heartbeat_event(qti_can_priv_data, sysstate_value, 4);
 	mutex_unlock(&h_lock);
 	sysstate_value = 0;
 	return count;
@@ -63,13 +66,21 @@ static int qti_heartbeat_probe(struct platform_device *pdev) {
 	int ret = 0;
 
 	h_kobj = kobject_create_and_add("qti_heartbeat",NULL);
-	if(!h_kobj) {
+	if (!h_kobj) {
 		ret = -ENOMEM;
 		return ret;
 	}
 
+	hb_buf = (char *)kzalloc(HB_BUFFER_SIZE, GFP_KERNEL);
+	if (!hb_buf) {
+		kobject_put(h_kobj);
+		return -ENOMEM;
+	}
+
 	ret = sysfs_create_file(h_kobj, &h_attr.attr);
-	if(ret){
+	if (ret) {
+		kfree(hb_buf);
+		kobject_put(h_kobj);
 		pr_err("%s Failed to create /sys/qti_heartbeat/sysstate_value file\n",__func__);
 		ret = -1;
 		return ret;
@@ -84,6 +95,7 @@ static int qti_heartbeat_probe(struct platform_device *pdev) {
 }
 
 static int qti_heartbeat_remove(struct platform_device *pdev) {
+	kfree(hb_buf);
 	kobject_put(h_kobj);
 	cancel_delayed_work_sync(&hwork);
 	return 0;
