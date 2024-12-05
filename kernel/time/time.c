@@ -446,6 +446,11 @@ void set_normalized_timespec(struct timespec *ts, time_t sec, s64 nsec)
 }
 EXPORT_SYMBOL(set_normalized_timespec);
 
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+=======
+>>>>>>> fd6a6f2d905d (Merge tag 'v4.19.325' of https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux into sea-r-oss)
 /**
  * ns_to_timespec - Convert nanoseconds to timespec
  * @nsec:       the nanoseconds value to be converted
@@ -576,7 +581,11 @@ EXPORT_SYMBOL(ns_to_timespec64);
  * - all other values are converted to jiffies by either multiplying
  *   the input value by a factor or dividing it with a factor and
  *   handling any 32-bit overflows.
+<<<<<<< HEAD
  *   for the details see __msecs_to_jiffies()
+=======
+ *   for the details see _msecs_to_jiffies()
+>>>>>>> fd6a6f2d905d (Merge tag 'v4.19.325' of https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux into sea-r-oss)
  *
  * msecs_to_jiffies() checks for the passed in value being a constant
  * via __builtin_constant_p() allowing gcc to eliminate most of the
@@ -853,6 +862,10 @@ struct timespec64 timespec64_add_safe(const struct timespec64 lhs,
 	return res;
 }
 
+<<<<<<< HEAD
+=======
+>>>>>>> e0c6148779a6 (Merge tag 'v4.19.325' of https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux)
+>>>>>>> fd6a6f2d905d (Merge tag 'v4.19.325' of https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux into sea-r-oss)
 int get_timespec64(struct timespec64 *ts,
 		   const struct __kernel_timespec __user *uts)
 {
