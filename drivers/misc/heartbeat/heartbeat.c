@@ -12,8 +12,9 @@
 #include<linux/workqueue.h>
 #include<linux/mutex.h>
 
-#define QTI_EVENT_TIMEOUT   3
-#define HB_BUFFER_SIZE      1024
+#define QTI_EVENT_TIMEOUT        3
+#define HB_BUFFER_SIZE           1024
+#define HB_PROBE_MAX_RETRY_CNT   3
 
 struct kobject *h_kobj;
 uint32_t sysstate_value = 0;
@@ -64,6 +65,18 @@ EXPORT_SYMBOL(register_heartbeat);
 
 static int qti_heartbeat_probe(struct platform_device *pdev) {
 	int ret = 0;
+	static int retry;
+
+	if (!qti_can_priv_data) {
+		if (retry < HB_PROBE_MAX_RETRY_CNT) {
+			pr_err("%s: trying to probe retry count %d\n", __func__, retry);
+			retry++;
+			return -EPROBE_DEFER;
+		} else {
+			ret = -1;
+			return ret;
+		}
+	}
 
 	h_kobj = kobject_create_and_add("qti_heartbeat",NULL);
 	if (!h_kobj) {

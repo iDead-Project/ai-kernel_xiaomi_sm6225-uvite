@@ -1759,13 +1759,7 @@ static int qti_can_probe(struct spi_device *spi)
 			goto unregister_candev;
 		}
 	}
-#ifdef CONFIG_QTI_HEARTBEAT
-	err = register_heartbeat(priv_data);
-	if (err) {
-		LOGDE("Failed to register heartbeat: %d", err);
-		goto unregister_candev;
-	}
-#endif
+
 
 	err = request_threaded_irq(spi->irq, NULL, qti_can_irq,
 				   IRQF_TRIGGER_FALLING | IRQF_ONESHOT,
@@ -1807,7 +1801,18 @@ static int qti_can_probe(struct spi_device *spi)
 		LOGDE("QTI CAN probe failed\n");
 		err = -ENODEV;
 		goto free_irq;
+	} else {
+		LOGDE("%s: QTI CAN probe success\n", __func__);
 	}
+#ifdef CONFIG_QTI_HEARTBEAT
+	err = register_heartbeat(priv_data);
+	if (err) {
+		LOGDE("Failed to register heartbeat: %d", err);
+		goto unregister_candev;
+	} else {
+		LOGDE("%s: Registered Heartbeat\n", __func__);
+	}
+#endif
 	return 0;
 
 free_irq:
