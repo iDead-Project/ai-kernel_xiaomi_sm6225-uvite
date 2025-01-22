@@ -11,10 +11,12 @@
 #include<linux/sysfs.h>
 #include<linux/workqueue.h>
 #include<linux/mutex.h>
+#include<linux/heartbeat.h>
 
 #define QTI_EVENT_TIMEOUT        3
 #define HB_BUFFER_SIZE           1024
 #define HB_PROBE_MAX_RETRY_CNT   3
+#define HB_DATA_LENGTH           4
 
 struct kobject *h_kobj;
 uint32_t sysstate_value = 0;
@@ -25,10 +27,24 @@ char *hb_buf = NULL;
 
 int send_heartbeat_event(void *, uint32_t, int);
 
+void trigger_heartbeat_event(const char *driver_name, uint32_t state)
+{
+        pr_debug("%s: driver_name(%s), state(0x%x)", __func__, driver_name, state);
+        if(!qti_can_priv_data) {
+                pr_err("%s: qti_can_priv_data is NULL", __func__);
+                return;
+        }
+        mutex_lock(&h_lock);
+        sysstate_value = state;
+        send_heartbeat_event(qti_can_priv_data, sysstate_value, HB_DATA_LENGTH);
+        mutex_unlock(&h_lock);
+        sysstate_value = 0;
+}
+
 void send_qti_events(struct work_struct *work)
 {
 	mutex_lock(&h_lock);
-	send_heartbeat_event(qti_can_priv_data, sysstate_value, 4);
+	send_heartbeat_event(qti_can_priv_data, sysstate_value, HB_DATA_LENGTH);
 	mutex_unlock(&h_lock);
 	sysstate_value = 0;
 	schedule_delayed_work(&hwork, QTI_EVENT_TIMEOUT*HZ);
@@ -49,7 +65,7 @@ static ssize_t android_status_store(struct kobject *kobj,
 	strlcpy(hb_buf, buf, count);
 	sscanf(buf, "%8x", &sysstate_value);
 	mutex_lock(&h_lock);
-	send_heartbeat_event(qti_can_priv_data, sysstate_value, 4);
+	send_heartbeat_event(qti_can_priv_data, sysstate_value, HB_DATA_LENGTH);
 	mutex_unlock(&h_lock);
 	sysstate_value = 0;
 	return count;
