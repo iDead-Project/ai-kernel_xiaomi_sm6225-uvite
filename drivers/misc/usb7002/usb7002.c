@@ -1,6 +1,6 @@
 //SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2024-2025 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/module.h>
@@ -9,7 +9,11 @@
 #include <linux/of.h>
 #include <linux/sysfs.h>
 #include <linux/slab.h>
+#include <linux/gpio.h>
+#include <linux/of_gpio.h>
 
+#define USB7002_GPIO_STATUS_HIGH    1
+#define USB7002_GPIO_STATUS_LOW     0
 struct usb7002_device {
 	struct i2c_client *client;
 	struct device *dev;
@@ -308,6 +312,46 @@ i2c_fail:
 }
 EXPORT_SYMBOL(usb7002_switch_host);
 
+static int usb7002_reset(struct device *dev)
+{
+	uint32_t usb7002_reset_gpio;
+	int ret = 0;
+	struct device_node *dev_node;
+
+	dev_node = dev->of_node;
+	if (!dev_node) {
+		ret = -ENODEV;
+		goto exit;
+	}
+
+	usb7002_reset_gpio = of_get_named_gpio(dev_node, "reset-gpios", 0);
+	if (usb7002_reset_gpio < 0) {
+		ret = -ENOENT;
+		goto exit;
+	}
+
+	if (!gpio_is_valid(usb7002_reset_gpio)) {
+                pr_err("%s: usb7002_reset_gpio (%d) is not valid\n",
+                                __func__, usb7002_reset_gpio);
+                ret = -EINVAL;
+                goto exit;
+        }
+
+        if (gpio_direction_output(usb7002_reset_gpio, USB7002_GPIO_STATUS_LOW)) {
+                pr_err("%s: Setting usb7002_reset_gpio (%d) direction to output mode failed\n",
+                                __func__, usb7002_reset_gpio);
+                ret = -EIO;
+                goto exit;
+        }
+
+        gpio_set_value(usb7002_reset_gpio, USB7002_GPIO_STATUS_HIGH);
+	pr_debug("%s: usb7002_reset success\n", __func__);
+exit:
+        return ret;
+}
+
+
+
 static int usb7002_i2c_probe(struct i2c_client *client,
 		const struct i2c_device_id *id) {
 
@@ -322,6 +366,12 @@ static int usb7002_i2c_probe(struct i2c_client *client,
 	u7002->client = client;
 	u7002->dev = &client->dev;
 	i2c_set_clientdata(client, u7002);
+
+	ret = usb7002_reset(u7002->dev);
+	if (ret != 0) {
+		pr_err("%s: usb7002_reset failed", __func__);
+		goto free_mem;
+	}
 
 	ret = usb7002_switch_peripheral();
 	if (ret < 0) {
