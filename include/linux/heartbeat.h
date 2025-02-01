@@ -23,7 +23,11 @@
 #define DISPLAY_UNDERRUN       0x400A0000  // Display couldn't keep up with the data, causing a delay or stutter
 #define DISPLAY_COMMIT_FAILURE 0x400B0000  // Display fails to update new information
 
+#ifdef CONFIG_QTI_HEARTBEAT
 void trigger_heartbeat_event(const char *driver_name, uint32_t state);
+#else
+void trigger_heartbeat_event(const char *driver_name, uint32_t state) { }
+#endif
 
 #endif
 
