@@ -36,6 +36,12 @@ typedef struct {
 	u8 hb_probe_retry_count;
 } heartbeat;
 
+static bool enable_hb_logs;
+module_param(enable_hb_logs, bool, 0644);
+MODULE_PARM_DESC(enable_hb_logs, "Enable heartbeat logs (false=disabled, true=enabled)");
+#define hb_log_info(fmt, ...) \
+	do { if (enable_hb_logs) pr_err(fmt, ##__VA_ARGS__); } while(0)
+
 uint32_t sysstate_value;
 static heartbeat *hb_priv_data;
 
@@ -50,6 +56,8 @@ void trigger_heartbeat_event(const char *driver_name, uint32_t state)
 	hb_priv_data->trigger_hb_event = true;
 	snprintf(hb_priv_data->trigger_hb_buf, TRIGGER_HB_BUF_SIZE,
 			"%8x", state);
+	hb_log_info("%s: driver_name(%s), trigger_hb_event(%s), sysstate_value(%x)",
+			__func__, driver_name, hb_priv_data->trigger_hb_event, sysstate_value);
 	if (hb_priv_data->mcu_present) {
 		if (!hb_priv_data->qti_can_priv_data) {
 			pr_err("%s: qti_can_priv_data is NULL", __func__);
@@ -75,6 +83,8 @@ void send_qti_events(struct work_struct *work)
 
 	mutex_lock(&hb_priv_data->hb_lock);
 	sysstate_value = 0;
+	hb_log_info("%s: sysstate_value(%x)",
+			__func__, sysstate_value);
 	ret = send_heartbeat_event(hb_priv_data->qti_can_priv_data,
 			sysstate_value, HB_DATA_LENGTH);
 	if (ret) {
@@ -91,9 +101,13 @@ static ssize_t android_status_show(struct kobject *kobj,
 {
 	if (hb_priv_data->trigger_hb_event) {
 		hb_priv_data->trigger_hb_event = false;
+		hb_log_info("%s: trigger_hb_event(%s)",
+				__func__, hb_priv_data->trigger_hb_event);
 		return snprintf(buf, HB_BUFFER_SIZE, "%s",
 				hb_priv_data->trigger_hb_buf);
 	} else {
+		hb_log_info("%s: hb_buf(%s)",
+				__func__, hb_priv_data->hb_buf);
 		return snprintf(buf, HB_BUFFER_SIZE, "%s",
 				hb_priv_data->hb_buf);
 	}
@@ -106,9 +120,14 @@ static ssize_t android_status_store(struct kobject *kobj,
 	if (count >= HB_BUFFER_SIZE) {
 		return -EINVAL;
 	}
-	strlcpy(hb_priv_data->hb_buf, buf, count);
+
+	strlcpy(hb_priv_data->hb_buf, buf, count+1);
+	hb_log_info("%s: hb_buf(%s), count(%d)",
+			__func__, hb_priv_data->hb_buf, count);
 	mutex_lock(&hb_priv_data->hb_lock);
 	sscanf(buf, "%8x", &sysstate_value);
+	hb_log_info("%s: sysstate_value(%x)",
+			__func__, sysstate_value);
 	if (hb_priv_data->mcu_present) {
 		ret = send_heartbeat_event(hb_priv_data->qti_can_priv_data,
 				sysstate_value, HB_DATA_LENGTH);
