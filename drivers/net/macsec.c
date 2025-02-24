@@ -1198,11 +1198,7 @@ static rx_handler_result_t macsec_handle_frame(struct sk_buff **pskb)
 			u64_stats_update_begin(&rxsc_stats->syncp);
 			rxsc_stats->stats.InPktsNotUsingSA++;
 			u64_stats_update_end(&rxsc_stats->syncp);
-<<<<<<< HEAD
-			secy->netdev->stats.rx_errors++;
-=======
 			DEV_STATS_INC(secy->netdev, rx_errors);
->>>>>>> 85d5cfe31cc3a8cd9df181d4410b48eda7c24b68
 			goto drop_nosa;
 		}
 

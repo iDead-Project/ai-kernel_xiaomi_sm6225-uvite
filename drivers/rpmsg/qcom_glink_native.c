@@ -165,16 +165,11 @@ struct qcom_glink {
 	unsigned long features;
 
 	bool intentless;
-<<<<<<< HEAD
 
 	wait_queue_head_t tx_avail_notify;
 	bool sent_read_notify;
 
 	void *ilc;
-=======
-	wait_queue_head_t tx_avail_notify;
-	bool sent_read_notify;
->>>>>>> 85d5cfe31cc3a8cd9df181d4410b48eda7c24b68
 };
 
 enum {
@@ -264,10 +259,7 @@ static const struct rpmsg_endpoint_ops glink_endpoint_ops;
 #define GLINK_CMD_TX_DATA_CONT		12
 #define GLINK_CMD_READ_NOTIF		13
 #define GLINK_CMD_RX_DONE_W_REUSE	14
-<<<<<<< HEAD
 #define GLINK_CMD_SIGNALS			15
-=======
->>>>>>> 85d5cfe31cc3a8cd9df181d4410b48eda7c24b68
 
 #define GLINK_FEATURE_INTENTLESS	BIT(1)
 
@@ -659,17 +651,35 @@ static void qcom_glink_rx_done_work(struct kthread_work *work)
 						     intent_work);
 	struct qcom_glink *glink = channel->glink;
 	struct glink_core_rx_intent *intent, *tmp;
+	struct {
+		u16 id;
+		u16 lcid;
+		u32 liid;
+	} __packed cmd;
+
+	unsigned int cid = channel->lcid;
+	unsigned int iid;
+	bool reuse;
+
 	unsigned long flags;
 
 	spin_lock_irqsave(&channel->intent_lock, flags);
 	list_for_each_entry_safe(intent, tmp, &channel->done_intents, node) {
 		list_del(&intent->node);
 		spin_unlock_irqrestore(&channel->intent_lock, flags);
+		iid = intent->id;
+		reuse = intent->reuse;
+
 
 		cmd.id = reuse ? GLINK_CMD_RX_DONE_W_REUSE : GLINK_CMD_RX_DONE;
 		cmd.lcid = cid;
 		cmd.liid = iid;
 
+		qcom_glink_tx(glink, &cmd, sizeof(cmd), NULL, 0, true);
+		if (!reuse) {
+			kfree(intent->data);
+			kfree(intent);
+		}
 		spin_lock_irqsave(&channel->intent_lock, flags);
 	}
 	spin_unlock_irqrestore(&channel->intent_lock, flags);
