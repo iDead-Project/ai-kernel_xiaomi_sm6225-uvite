@@ -399,7 +399,6 @@
 
 /* Global User Control Register 3 */
 #define DWC3_GUCTL3_SPLITDISABLE		BIT(14)
-#define DWC3_GUCTL3_USB20_RETRY_DISABLE		BIT(16)
 
 /* Device Configuration Register */
 #define DWC3_DCFG_DEVADDR(addr)	((addr) << 3)
@@ -1125,16 +1124,6 @@ struct dwc3_scratchpad_array {
  * 	3	- Reserved
  * @dis_metastability_quirk: set to disable metastability quirk.
  * @dis_split_quirk: set to disable split boundary.
- * @err_evt_seen: previous event in queue was erratic error
- * @usb3_u1u2_disable: if true, disable U1U2 low power modes in Superspeed mode
- * @in_lpm: indicates if controller is in low power mode (no clocks)
- * @irq: irq number
- * @irq_cnt: total irq count
- * @bh_completion_time: time taken for IRQ bottom-half completion
- * @bh_handled_evt_cnt: no. of events handled per IRQ bottom-half
- * @irq_dbg_index: index for capturing IRQ stats
- * @wait_linkstate: waitqueue for waiting LINK to move into required state
- * @vbus_draw: current to be drawn from USB
  * @imod_interval: set the interrupt moderation interval in 250ns
  *                 increments or 0 to disable.
  * @xhci_imod_value: imod value to use with xhci
