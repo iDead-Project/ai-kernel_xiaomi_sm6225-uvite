@@ -26,6 +26,11 @@
 #include <dt-bindings/sound/audio-codec-port-types.h>
 #include <asoc/msm-cdc-supply.h>
 
+#ifdef CONFIG_SOUND_CONTROL
+#include <linux/kobject.h>
+#include <linux/sysfs.h>
+#endif
+
 #define DRV_NAME "wcd937x_codec"
 
 #define WCD9370_VARIANT 0
@@ -2091,6 +2096,55 @@ static int wcd937x_codec_enable_vdd_buck(struct snd_soc_dapm_widget *w,
 	return 0;
 }
 
+#ifdef CONFIG_SOUND_CONTROL
+struct snd_soc_component *sound_control_component_ptr;
+
+static ssize_t headphone_gain_show(struct kobject *kobj,
+		struct kobj_attribute *attr, char *buf)
+{
+	return snprintf(buf, PAGE_SIZE, "%d %d\n",
+		snd_soc_component_read32(sound_control_component_ptr, WCD937X_HPH_L_EN),
+		snd_soc_component_read32(sound_control_component_ptr, WCD937X_HPH_R_EN)
+	);
+}
+
+static ssize_t headphone_gain_store(struct kobject *kobj,
+		struct kobj_attribute *attr, const char *buf, size_t count)
+{
+
+	int input_l, input_r;
+
+	sscanf(buf, "%d %d", &input_l, &input_r);
+
+	if (input_l < -40 || input_l > 20)
+		input_l = 0;
+
+	if (input_r < -40 || input_r > 20)
+		input_r = 0;
+
+	snd_soc_component_write(sound_control_component_ptr, WCD937X_HPH_L_EN, input_l);
+	snd_soc_component_write(sound_control_component_ptr, WCD937X_HPH_R_EN, input_r);
+
+	return count;
+}
+
+static struct kobj_attribute headphone_gain_attribute =
+	__ATTR(headphone_gain, 0664,
+		headphone_gain_show,
+		headphone_gain_store);
+
+static struct attribute *sound_control_attrs[] = {
+		&headphone_gain_attribute.attr,
+		NULL,
+};
+
+static struct attribute_group sound_control_attr_group = {
+		.attrs = sound_control_attrs,
+};
+
+static struct kobject *sound_control_kobj;
+#endif
+
 static const char * const wcd937x_aux_path_mode_text[] = {
 	"HP_MODE", "NORMAL_MODE",
 };
@@ -2884,6 +2938,10 @@ static int wcd937x_soc_codec_probe(struct snd_soc_component *component)
 	if (!wcd937x)
 		return -EINVAL;
 
+#ifdef CONFIG_SOUND_CONTROL
+	sound_control_component_ptr = component;
+#endif
+
 	wcd937x->component = component;
 	snd_soc_component_init_regmap(component, wcd937x->regmap);
 	variant = (snd_soc_component_read32(
@@ -2926,6 +2984,18 @@ static int wcd937x_soc_codec_probe(struct snd_soc_component *component)
 	snd_soc_dapm_ignore_suspend(dapm, "HPHL");
 	snd_soc_dapm_ignore_suspend(dapm, "HPHR");
 	snd_soc_dapm_sync(dapm);
+
+#ifdef CONFIG_SOUND_CONTROL
+	sound_control_kobj = kobject_create_and_add("sound_control", kernel_kobj);
+	if (sound_control_kobj == NULL) {
+		pr_warn("%s kobject create failed!\n", __func__);
+        }
+
+	ret = sysfs_create_group(sound_control_kobj, &sound_control_attr_group);
+        if (ret) {
+		pr_warn("%s sysfs file create failed!\n", __func__);
+	}
+#endif
 
 	wcd_cls_h_init(&wcd937x->clsh_info);
 	wcd937x_init_reg(component);
