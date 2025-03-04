@@ -2906,18 +2906,9 @@ vm_fault_t do_swap_page(struct vm_fault *vmf)
 
 
 	delayacct_set_flag(DELAYACCT_PF_SWAPIN);
+	page = lookup_swap_cache(entry, vma, vmf->address);
+	swapcache = page;
 
-	/*
-	 * lookup_swap_cache below can fail and before the SWP_SYNCHRONOUS_IO
-	 * check is made, another process can populate the swapcache, delete
-	 * the swap entry and decrement the swap count. So decide on taking
-	 * the SWP_SYNCHRONOUS_IO path before the lookup. In the event of the
-	 * race described, the victim process will find a swap_count > 1
-	 * and can then take the readahead path instead of SWP_SYNCHRONOUS_IO.
-	 * Moto huangzq2: check sync_io on each page if we enabled Zram wb.
-	 * Zram writeback will remove SWP_SYNCHRONOUS_IO flag as it has disk
-	 * IO operation on writeback page during swap in.
-	 */
 	if (!page) {
 		struct swap_info_struct *si = swp_swap_info(entry);
 
