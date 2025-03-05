@@ -2413,10 +2413,7 @@ static const struct usb_device_id option_ids[] = {
 	  .driver_info = NCTRL(1) },
 	{ USB_DEVICE_INTERFACE_CLASS(0x1bbb, 0x0640, 0xff),			/* TCL IK512 ECM */
 	  .driver_info = NCTRL(3) },
-<<<<<<< HEAD
-=======
 	{ USB_DEVICE_INTERFACE_CLASS(0x2949, 0x8700, 0xff) },			/* Neoway N723-EA */
->>>>>>> 92fe68c750465be4f4c07752f41cf1b5dc653273
 	{ } /* Terminating entry */
 };
 MODULE_DEVICE_TABLE(usb, option_ids);
